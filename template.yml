@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Cloud infrastructure for the validation server
+
+Parameters:
+  S3BucketName:
+    Type: String 
+    Default: ui-validation-server
+    Description: Name of S3 bucket name for validation server stack
+
+Resources:
+  S3Key:
+    Type: AWS::KMS::Key 
+    Properties:
+      Description: KMS Key for encrypted S3 bucket
+      Enabled: true
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS:
+              Fn::Join:
+              - ''
+              - - 'arn:aws:iam::'
+                - Ref: AWS::AccountId
+                - :root
+          Action: kms:*
+          Resource: '*'
+  S3KeyAlias:
+    Type: AWS::KMS::Alias 
+    Properties:
+      AliasName: alias/validation-server
+      TargetKeyId: !Ref S3Key
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${S3BucketName}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'aws:kms'
+              KMSMasterKeyID: !Ref S3Key
+    DeletionPolicy: Delete
