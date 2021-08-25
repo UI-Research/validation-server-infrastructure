@@ -5,20 +5,20 @@ CloudFormation stack for the validation server infrastructure.
 To deploy (requires AWS cli to be installed and configured):
 
 ```bash
-
 ./deploy.sh
-
 ```
 
-## IRS 1075
+This requires an `.env` file with the following variables set:
 
-[AWS Whitepaper](https://docs.aws.amazon.com/whitepapers/latest/internal-revenue-service-publication-1075-compliance-in-aws/internal-revenue-service-publication-1075-compliance-in-aws.pdf#welcome)
-(updated 2021-02-24)
-
+```
+BACKEND_MASTER_USER_PASSWORD
+DBSubnetGroupName
+S3BucketName
+EcrRepositoryName
+VpcId
+```
 ## Infrastructure
 
-### S3 Bucket (ui-validation-server)
-
-* Server-Side Encryption: `SYMMETRIC_DEFAULT` (AES-256-GCM) via SSE-KMS (alias: `validation-server`)
-* Server access logging: Disabled (should this be enabled?)
-* Bucket versioning: Disabled (should this be enabled?)
+* S3 bucket with Server-Side Encryption: `SYMMETRIC_DEFAULT` (AES-256-GCM) via SSE-KMS (alias: `validation-server`)
+* RDS database instance running postgres engine with storage encrypted at rest and accompanying security group
+* Elastic Container Registry repository for storing Docker images for the back-end system

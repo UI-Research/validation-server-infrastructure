@@ -5,14 +5,22 @@ Description: Cloud infrastructure for the validation server
 Parameters:
   S3BucketName:
     Type: String 
-    Default: ui-validation-server
     Description: Name of S3 bucket name for validation server stack
+  BackendMasterUserPassword:
+    Type: String
+    Description: Admin password for backend database
+  DBSubnetGroupName:
+    Type: String
+    Description: VPC Subnet for RDS instance
+  EcrRepositoryName:
+    Type: String
+    Description: Name of ECR repository for containerized lambda deploy
 
 Resources:
-  S3Key:
+  KmsKey:
     Type: AWS::KMS::Key 
     Properties:
-      Description: KMS Key for encrypted S3 bucket
+      Description: KMS Key for encryption
       Enabled: true
       KeySpec: SYMMETRIC_DEFAULT
       KeyUsage: ENCRYPT_DECRYPT
@@ -31,11 +39,22 @@ Resources:
                 - :root
           Action: kms:*
           Resource: '*'
+        - Sid: Enable Lambda Permissions
+          Effect: Allow
+          Principal:
+            Service:
+              - "lambda.amazonaws.com"
+            AWS:
+              - "arn:aws:iam:::role/validation-server-engine-role"
+          Action: kms:Decrypt
+          Resource: "*"
+  
   S3KeyAlias:
     Type: AWS::KMS::Alias 
     Properties:
       AliasName: alias/validation-server
-      TargetKeyId: !Ref S3Key
+      TargetKeyId: !Ref KmsKey
+  
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -44,5 +63,75 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: 'aws:kms'
-              KMSMasterKeyID: !Ref S3Key
+              KMSMasterKeyID: !Ref KmsKey
     DeletionPolicy: Delete
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open postgres database for access
+      VpcId: !Sub '${VpcId}'
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: "5432"
+        ToPort: "5432"
+        CidrIp: 0.0.0.0/0
+  
+  SmartNoiseDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: "100"
+      AvailabilityZone: "us-east-1c"
+      BackupRetentionPeriod: 0
+      CopyTagsToSnapshot: true
+      DBInstanceIdentifier: "validation-server-backend"
+      DBInstanceClass: "db.t3.medium"
+      DBSubnetGroupName: !Sub '${DBSubnetGroupName}'
+      DeletionProtection: false
+      EnablePerformanceInsights: false
+      Engine: "postgres"
+      EngineVersion: "13.3"
+      KmsKeyId: !Ref KmsKey
+      MasterUsername: "postgres"
+      MasterUserPassword: !Sub '${BackendMasterUserPassword}'
+      MonitoringInterval: 0
+      MultiAZ: false
+      PubliclyAccessible: true
+      StorageEncrypted: true
+      StorageType: "gp2"
+      VPCSecurityGroups: 
+        - !GetAtt RdsSecurityGroup.GroupId
+
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      EncryptionConfiguration:
+        EncryptionType: "AES256"
+      ImageScanningConfiguration:
+        ScanOnPush: false
+      ImageTagMutability: "MUTABLE"
+      RepositoryName: !Sub '${EcrRepositoryName}'
+      RepositoryPolicyText:
+        Statement:
+          -
+            Sid: LambdaECRImageRetrievalPolicy
+            Effect: Allow 
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "ecr:BatchGetImage"
+              - "ecr:GetDownloadUrlForLayer"
+
+  LambdaUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: validation-server-lambda-user
+      Policies:
+      - PolicyName: validation-server-trigger-lambda
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: lambda:InvokeFunction
+            Resource: "arn:aws:lambda:us-east-1::function:validation-server-engine"
