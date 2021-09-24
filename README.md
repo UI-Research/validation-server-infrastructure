@@ -2,7 +2,7 @@
 
 CloudFormation stack for the validation server infrastructure.
 
-To deploy (requires AWS cli to be installed and configured):
+To deploy (requires [AWS CLI](https://aws.amazon.com/cli/) to be installed and configured):
 
 ```bash
 ./deploy.sh
