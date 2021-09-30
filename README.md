@@ -1,5 +1,7 @@
 # validation-server-infrastructure
 
+[Validation Server Whitepaper](https://www.urban.org/research/publication/privacy-preserving-validation-server-prototype)
+
 CloudFormation stack for the validation server infrastructure.
 
 To deploy (requires [AWS CLI](https://aws.amazon.com/cli/) to be installed and configured):
